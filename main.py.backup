@@ -113,19 +113,6 @@ async def slack_interactive(req: Request):
 
 
 # ── Event: @amigos mention ─────────────────────────────────────────────────────
-# ── Channel filtering helper ──────────────────────────────────────────────────
-def is_channel_allowed(channel_id: str) -> bool:
-    """
-    Check if the bot is allowed to respond in this channel.
-    Returns True if SLACK_ALLOWED_CHANNELS is empty (allow all) or if the
-    channel_id is in the allowed list.
-    """
-    if not config.SLACK_ALLOWED_CHANNELS:
-        return True  # Empty = allow all channels
-    
-    allowed = [ch.strip() for ch in config.SLACK_ALLOWED_CHANNELS.split(",")]
-    return channel_id in allowed
-
 @slack_app.event("app_mention")
 async def handle_mention(event: dict, client: AsyncWebClient):
     """
@@ -135,11 +122,6 @@ async def handle_mention(event: dict, client: AsyncWebClient):
     channel_id: str = event["channel"]
     event_ts: str = event["ts"]
     thread_ts: str = event.get("thread_ts", event_ts)  # use existing thread or start one
-    # Check if this channel is allowed
-    if not is_channel_allowed(channel_id):
-        logger.info(f"Ignoring mention in non-allowed channel {channel_id}")
-        return
-
     text: str = event.get("text", "")
 
     # Strip the bot mention tag(s)
@@ -221,12 +203,6 @@ async def handle_reaction_added(event: dict):
 
     msg_ts: str = item["ts"]
     info = await get_thread_by_msg_ts(msg_ts)
-    
-    # Check if this channel is allowed
-    channel_id = item.get("channel", "")
-    if not is_channel_allowed(channel_id):
-        logger.info(f"Ignoring reaction in non-allowed channel {channel_id}")
-        return
     if not info:
         return  # Reaction is on a non-amigos message
 
@@ -325,12 +301,6 @@ async def handle_thread_message(event: dict):
     if event.get("bot_id") or event.get("subtype"):
         return
 
-    
-    # Check if this channel is allowed
-    channel_id = event.get("channel", "")
-    if not is_channel_allowed(channel_id):
-        logger.info(f"Ignoring message in non-allowed channel {channel_id}")
-        return
     thread_ts: str | None = event.get("thread_ts")
     if not thread_ts:
         return  # Top-level message — ignore

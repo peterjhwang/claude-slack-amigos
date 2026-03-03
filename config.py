@@ -10,6 +10,9 @@ load_dotenv()
 # ── Slack ─────────────────────────────────────────────────────────────────────
 SLACK_BOT_TOKEN: str = os.environ["SLACK_BOT_TOKEN"]
 SLACK_SIGNING_SECRET: str = os.environ["SLACK_SIGNING_SECRET"]
+# Comma-separated list of channel IDs where the bot is allowed to respond.
+# Leave empty to allow all channels. Example: "C1234567890,C0987654321"
+SLACK_ALLOWED_CHANNELS: str = os.getenv("SLACK_ALLOWED_CHANNELS", "")
 
 # ── LLM provider keys ─────────────────────────────────────────────────────────
 # Only the key matching your chosen model(s) is required.
