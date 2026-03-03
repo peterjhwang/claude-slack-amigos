@@ -1,0 +1,36 @@
+# Core
+anthropic
+python-dotenv
+pydantic
+
+# Slack
+slack-bolt
+slack-sdk
+
+# LangGraph (outer orchestration + inner agent frameworks)
+langgraph
+langgraph-checkpoint-sqlite
+
+# LangChain provider packages — install only what you need
+langchain-core
+langchain-anthropic        # required if any model starts with claude-
+langchain-openai           # required if any model starts with gpt-, o1-, o3-, o4-
+langchain-google-genai     # required if any model starts with gemini-
+
+# Web framework
+fastapi
+uvicorn[standard]
+
+# Async SQLite (state management)
+aiosqlite
+
+# HTTP client
+httpx
+
+# Optional: web search & scraping for Archie's research
+# Get a free key at https://tavily.com
+tavily-python
+
+# BeautifulSoup: HTML parsing for basic/zenrows search providers
+beautifulsoup4
+aiohttp

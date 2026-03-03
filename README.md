@@ -4,6 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![Powered by Claude](https://img.shields.io/badge/powered%20by-Claude%20Max-orange)](https://anthropic.com)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 
 A single `@amigos` Slack bot that runs three specialist AI agents in sequence, each with its own configurable persona and a human approval gate between phases.
 
@@ -19,6 +20,14 @@ A single `@amigos` Slack bot that runs three specialist AI agents in sequence, e
 | 📊 **Evaluator** | Eval | `claude-sonnet-4-6` | LLM-as-judge + red-teaming + metrics scorecard |
 
 Agent display names are fully configurable via `RESEARCHER_NAME`, `CODER_NAME`, and `EVALUATOR_NAME` in `.env`.
+
+## 📚 Documentation
+
+- **[Setup Guide](docs/SETUP.md)** - Complete installation and configuration
+- **[Usage Guide](docs/USAGE.md)** - How to use the bot effectively
+- **[Claude Code Setup](docs/CLAUDE_CODE_SETUP.md)** - How agents use Claude Code CLI
+- **[Channel Restrictions](docs/CHANNEL_RESTRICTIONS.md)** - Limit bot to specific channels
+- **[All Docs](docs/)** - Full documentation index
 
 ## Workflow
 
@@ -186,12 +195,50 @@ ngrok http 3000
 
 ### Without Docker
 
+**With uv (recommended — 10-100× faster than pip):**
+
+```bash
+# Install uv if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create venv and install dependencies
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv pip install -r requirements.txt
+
+# Run the server
+uvicorn main:app --host 0.0.0.0 --port 3000 --reload
+```
+
+**Or with standard pip:**
+
 ```bash
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 3000 --reload
 ```
+
+### Managing Dependencies
+
+This project uses [uv](https://github.com/astral-sh/uv) for dependency management:
+
+- **[requirements.in](requirements.in)** — Direct dependencies (edit this when adding/removing packages)
+- **[requirements.txt](requirements.txt)** — Locked dependencies (auto-generated, do not edit manually)
+
+**To add or update dependencies:**
+
+```bash
+# Edit requirements.in to add/remove packages
+# Then compile to requirements.txt:
+uv pip compile requirements.in -o requirements.txt
+
+# Install the updated dependencies:
+uv pip install -r requirements.txt
+```
+
+This ensures reproducible builds and makes dependency changes clear in version control.
+
 
 ---
 
