@@ -39,22 +39,21 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 
 from config import (
     ANTHROPIC_API_KEY,
-    ARCHIE_MODEL,
     ARCHIE_USE_CLAUDE_CODE,
+    RESEARCHER_PERSONA,
     JIRA_API_TOKEN,
     JIRA_EMAIL,
     JIRA_PROJECT_KEY,
     JIRA_URL,
-    RESEARCHER_NAME,
 )
 from tools import jira_client
+from tools.llm import make_llm
 from tools.search import web_search as _do_web_search
 
 logger = logging.getLogger(__name__)
@@ -154,7 +153,7 @@ You have access to Jira tools:
     )
 
     return f"""\
-You are {RESEARCHER_NAME}, the AI Architect & Researcher of the 3 Amigos AI engineering team.
+You are {RESEARCHER_PERSONA["name"]}, the AI Architect & Researcher of the 3 Amigos AI engineering team.
 You work for an expert AI engineer who uses Claude Max for production systems.
 
 ## Your ReAct Loop
@@ -208,11 +207,7 @@ ARCHIE_SYSTEM = _build_system_prompt()
 
 def _build_react_agent():
     """Compile the create_react_agent with all tools enabled by current config."""
-    llm = ChatAnthropic(
-        model=ARCHIE_MODEL,
-        api_key=ANTHROPIC_API_KEY,
-        max_tokens=8_000,
-    )
+    llm = make_llm(RESEARCHER_PERSONA["model"], max_tokens=8_000)
     tools = [web_search]
     if JIRA_URL and JIRA_EMAIL and JIRA_API_TOKEN:
         tools.append(read_jira_ticket)
@@ -223,6 +218,9 @@ def _build_react_agent():
 
 
 _archie_graph = _build_react_agent()
+
+# Lightweight singleton for one-shot calls (interview questions, etc.)
+_llm = make_llm(RESEARCHER_PERSONA["model"])
 
 
 # ── Helper ─────────────────────────────────────────────────────────────────────
@@ -279,7 +277,6 @@ async def generate_interview_questions(task: str) -> str:
     Returns a numbered list string ready to paste into Slack.
     """
     logger.info("[Researcher/interview] Generating scoping questions for: %s", task[:80])
-    from langchain_core.messages import HumanMessage, SystemMessage
     result = await _llm.ainvoke(
         [SystemMessage(content=_INTERVIEW_SYSTEM), HumanMessage(content=f"Task: {task}")]
     )

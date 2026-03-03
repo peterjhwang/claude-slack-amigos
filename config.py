@@ -11,8 +11,11 @@ load_dotenv()
 SLACK_BOT_TOKEN: str = os.environ["SLACK_BOT_TOKEN"]
 SLACK_SIGNING_SECRET: str = os.environ["SLACK_SIGNING_SECRET"]
 
-# ── Anthropic ─────────────────────────────────────────────────────────────────
-ANTHROPIC_API_KEY: str = os.environ["ANTHROPIC_API_KEY"]
+# ── LLM provider keys ─────────────────────────────────────────────────────────
+# Only the key matching your chosen model(s) is required.
+ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
 
 # ── Optional integrations ─────────────────────────────────────────────────────
 TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")
@@ -45,30 +48,28 @@ PORT: int = int(os.getenv("PORT", "3000"))
 DB_PATH: str = os.getenv("DB_PATH", "./data/amigos.db")
 CHECKPOINT_DB: str = os.getenv("CHECKPOINT_DB", "./data/checkpoints.db")
 
-# ── Model assignments (maximise Claude Max plan) ──────────────────────────────
-# Archie gets Opus for deep research & architecture design
-ARCHIE_MODEL: str = "claude-opus-4-6"
-# Builder gets Sonnet — fast, excellent at code generation
-BUILDER_MODEL: str = "claude-sonnet-4-6"
-# Eval gets Sonnet — analytical, cost-efficient for judge tasks
-EVAL_MODEL: str = "claude-sonnet-4-6"
+# ── Agent personas ─────────────────────────────────────────────────────────────
+# Each dict bundles everything that defines an agent: display name, Slack icon,
+# and the Claude model it runs on. Override names via .env; swap models here.
+_RESEARCHER_NAME: str = os.getenv("RESEARCHER_NAME", "Archie")
+_CODER_NAME: str = os.getenv("CODER_NAME", "Builder")
+_EVALUATOR_NAME: str = os.getenv("EVALUATOR_NAME", "Eval")
 
-# ── Agent display names (configurable — set in .env to rename your team) ─────────
-RESEARCHER_NAME: str = os.getenv("RESEARCHER_NAME", "Archie")
-CODER_NAME: str = os.getenv("CODER_NAME", "Builder")
-EVALUATOR_NAME: str = os.getenv("EVALUATOR_NAME", "Eval")
-
-# ── Agent Slack personas ───────────────────────────────────────────────────────
-# chat.postMessage allows custom username + icon so each agent looks distinct
 RESEARCHER_PERSONA: dict = {
-    "username": f"🧠 {RESEARCHER_NAME} (AI Architect & Researcher)",
+    "name": _RESEARCHER_NAME,
+    "username": f"🧠 {_RESEARCHER_NAME} (AI Architect & Researcher)",
     "icon_emoji": ":brain:",
+    "model": "claude-opus-4-6",    # Opus for deep research & architecture design
 }
 CODER_PERSONA: dict = {
-    "username": f"🔨 {CODER_NAME} (AI Coder)",
+    "name": _CODER_NAME,
+    "username": f"🔨 {_CODER_NAME} (AI Coder)",
     "icon_emoji": ":hammer:",
+    "model": "claude-sonnet-4-6",  # Sonnet via Claude Code CLI; kept for reference
 }
 EVALUATOR_PERSONA: dict = {
-    "username": f"📊 {EVALUATOR_NAME} (AI Evaluator & Red Teamer)",
+    "name": _EVALUATOR_NAME,
+    "username": f"📊 {_EVALUATOR_NAME} (AI Evaluator & Red Teamer)",
     "icon_emoji": ":bar_chart:",
+    "model": "claude-sonnet-4-6",  # Sonnet — analytical, cost-efficient for judge tasks
 }

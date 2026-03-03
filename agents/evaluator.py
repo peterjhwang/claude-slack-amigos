@@ -24,14 +24,15 @@ from __future__ import annotations
 import logging
 from typing import Optional, TypedDict
 
-import anthropic
+from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 
-from config import ANTHROPIC_API_KEY, EVAL_MODEL
+from config import EVALUATOR_PERSONA
+from tools.llm import make_llm
 
 logger = logging.getLogger(__name__)
 
-_client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+_llm = make_llm(EVALUATOR_PERSONA["model"])
 
 
 # ── Pipeline state ─────────────────────────────────────────────────────────────
@@ -48,15 +49,24 @@ class EvalState(TypedDict):
     scorecard: Optional[str]          # node 4: ASCII metrics table + verdict
 
 
-# ── Shared helper ──────────────────────────────────────────────────────────────
+# ── Shared helpers ─────────────────────────────────────────────────────────────
+
+def _extract_text(content) -> str:
+    """Normalise LangChain response content to a plain string."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return " ".join(
+            block.get("text", "") if isinstance(block, dict) else str(block)
+            for block in content
+        ).strip()
+    return str(content)
+
+
 async def _call(system: str, user: str, max_tokens: int = 4_000) -> str:
-    response = await _client.messages.create(
-        model=EVAL_MODEL,
-        max_tokens=max_tokens,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-    )
-    return "".join(b.text for b in response.content if b.type == "text").strip()
+    llm = _llm.bind(max_tokens=max_tokens)
+    result = await llm.ainvoke([SystemMessage(content=system), HumanMessage(content=user)])
+    return _extract_text(result.content).strip()
 
 
 # ── Node 1: Parse & structure acceptance criteria ──────────────────────────────

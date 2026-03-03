@@ -5,18 +5,20 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
 [![Powered by Claude](https://img.shields.io/badge/powered%20by-Claude%20Max-orange)](https://anthropic.com)
 
-A single `@amigos` Slack bot that runs three specialist AI agents in sequence, each with its own personality and a human approval gate between phases.
+A single `@amigos` Slack bot that runs three specialist AI agents in sequence, each with its own configurable persona and a human approval gate between phases.
 
 > **Demo**
 >
-> <!-- GIF: full @amigos workflow — Archie posts architecture, engineer reacts 👍, Builder opens PR, Eval posts scorecard -->
+> <!-- GIF: full @amigos workflow — interview, Archie posts architecture, engineer reacts 👍, Builder opens PR, Eval posts scorecard -->
 > ![3 Amigos full workflow demo](docs/demo-full-workflow.gif)
 
-| Agent | Persona | Model | Superpower |
-|-------|---------|-------|------------|
-| 🧠 **Archie** | AI Architect & Researcher | `claude-opus-4-6` | Deep research + Mermaid architecture diagrams |
-| 🔨 **Builder** | AI Coder | `claude-sonnet-4-6` | Production-grade code generation |
-| 📊 **Eval** | AI Evaluator & Red Teamer | `claude-sonnet-4-6` | LLM-as-judge + red-teaming + metrics |
+| Agent | Default Name | Model | Superpower |
+|-------|-------------|-------|------------|
+| 🧠 **Researcher** | Archie | `claude-opus-4-6` | Scoping interviews + deep research + architecture design |
+| 🔨 **Coder** | Builder | `claude-sonnet-4-6` | Production-grade code generation + GitHub PRs |
+| 📊 **Evaluator** | Eval | `claude-sonnet-4-6` | LLM-as-judge + red-teaming + metrics scorecard |
+
+Agent display names are fully configurable via `RESEARCHER_NAME`, `CODER_NAME`, and `EVALUATOR_NAME` in `.env`.
 
 ## Workflow
 
@@ -24,15 +26,19 @@ A single `@amigos` Slack bot that runs three specialist AI agents in sequence, e
 You:      @amigos Build a RAG pipeline with Claude + Pinecone
                             │
                     ┌───────▼────────┐
-                    │  🧠 Archie     │  researches → posts architecture + Mermaid + spec
+                    │  🧠 Researcher │  asks 3-5 scoping questions to understand requirements
+                    └───────┬────────┘
+                            │  ← you answer in the thread
+                    ┌───────▼────────┐
+                    │  🧠 Researcher │  researches → posts architecture + Mermaid + spec
                     └───────┬────────┘
                             │  ← you react 👍 or click Approve
                     ┌───────▼────────┐
-                    │  🔨 Builder    │  implements → posts complete code
+                    │  🔨 Coder      │  implements → opens GitHub PR
                     └───────┬────────┘
                             │  ← you react 👍 or click Approve
                     ┌───────▼────────┐
-                    │  📊 Eval       │  tests → posts metrics + red-team findings
+                    │  📊 Evaluator  │  tests → posts metrics + red-team findings
                     └───────┬────────┘
                             │  ← you react 👍 or click Approve
                     ✅ All three post final summary + sign-off
@@ -47,21 +53,31 @@ You:      @amigos Build a RAG pipeline with Claude + Pinecone
 - Click **✏️ Request Changes** button, then reply: `changes: <your instructions>`
 - Or type `changes: <your instructions>` directly in the thread
 
+### Starting from a Jira ticket
+```
+@amigos PROJ-123
+```
+The bot automatically fetches the ticket summary + description and uses it as the task. After the mission completes, the Jira ticket is transitioned to **Done**.
+
 ---
 
 ## Screenshots
 
-### 🧠 Archie — Architecture + Mermaid diagram
-<!-- GIF: Archie posting the research summary, Mermaid diagram, spec, and approval buttons -->
-![Archie architecture output](docs/demo-archie.gif)
+### 🧠 Researcher — Scoping interview
+<!-- GIF: Researcher posting scoping questions, engineer answering in thread -->
+![Researcher scoping interview](docs/demo-interview.gif)
 
-### 🔨 Builder — Claude Code running + PR opened
-<!-- GIF: Builder streaming progress updates then posting the GitHub PR link -->
-![Builder opening a PR](docs/demo-builder.gif)
+### 🧠 Researcher — Architecture + Mermaid diagram
+<!-- GIF: Researcher posting the research summary, Mermaid diagram, spec, and approval buttons -->
+![Researcher architecture output](docs/demo-archie.gif)
 
-### 📊 Eval — Red-team scorecard
-<!-- GIF: Eval posting the metrics table, red-team findings, and verdict -->
-![Eval scorecard](docs/demo-eval.gif)
+### 🔨 Coder — Code generation + PR opened
+<!-- GIF: Coder streaming progress updates then posting the GitHub PR link -->
+![Coder opening a PR](docs/demo-builder.gif)
+
+### 📊 Evaluator — Red-team scorecard
+<!-- GIF: Evaluator posting the metrics table, red-team findings, and verdict -->
+![Evaluator scorecard](docs/demo-eval.gif)
 
 ---
 
@@ -116,10 +132,36 @@ cp .env.example .env
 Fill in `.env`:
 
 ```env
+# Required
 SLACK_BOT_TOKEN=xoxb-...          # from OAuth & Permissions
 SLACK_SIGNING_SECRET=...           # from Basic Information
-ANTHROPIC_API_KEY=sk-ant-...       # your Claude Max API key
-TAVILY_API_KEY=tvly-...            # optional — free at tavily.com (gives Archie live web search)
+
+# LLM provider keys — only the one(s) matching your chosen models are needed
+ANTHROPIC_API_KEY=sk-ant-...       # claude-* models + Claude Code CLI (Coder)
+OPENAI_API_KEY=sk-...              # gpt-*, o1-*, o3-*, o4-* models
+GOOGLE_API_KEY=...                 # gemini-* models
+
+# Optional — GitHub (enables automatic PRs)
+GITHUB_TOKEN=ghp_...               # needs repo + pull_request scopes
+GITHUB_REPO=myorg/my-project       # leave empty to skip push/PR
+GITHUB_BASE_BRANCH=main
+
+# Optional — Tavily (gives Researcher live web search)
+TAVILY_API_KEY=tvly-...            # free tier at tavily.com
+
+# Optional — Jira (Researcher reads/creates tickets)
+JIRA_URL=yourco.atlassian.net
+JIRA_EMAIL=you@company.com
+JIRA_API_TOKEN=...                 # https://id.atlassian.com/manage-profile/security/api-tokens
+JIRA_PROJECT_KEY=PROJ              # project where Researcher creates Builder tickets
+
+# Optional — rename agent personas
+RESEARCHER_NAME=Archie
+CODER_NAME=Builder
+EVALUATOR_NAME=Eval
+
+# Optional — run Researcher via Claude Code CLI (uses Claude Max quota)
+ARCHIE_USE_CLAUDE_CODE=false
 ```
 
 ---
@@ -178,17 +220,18 @@ uvicorn main:app --host 0.0.0.0 --port 3000 --reload
 ```
 claude-slack-amigos/
 ├── main.py               # Slack Bolt + FastAPI entry point; all event handlers
-├── workflow.py           # LangGraph graph: Archie → Builder → Eval → Summary
-├── config.py             # All env-var config in one place
+├── workflow.py           # LangGraph graph: interview → researcher → coder → evaluator → summary
+├── config.py             # All env-var config in one place (models, personas, Jira, etc.)
 │
 ├── agents/
-│   ├── archie.py         # Research + architecture (claude-opus-4-6, web search tool)
-│   ├── builder.py        # Claude Code CLI subprocess: clone → build → push → PR
+│   ├── researcher.py     # Scoping interview + research + architecture (claude-opus-4-6)
+│   ├── coder.py          # Code generation + GitHub PR (claude-sonnet-4-6)
 │   └── evaluator.py      # LLM-as-judge + red-teaming (claude-sonnet-4-6)
 │
 ├── tools/
-│   ├── slack_poster.py   # post_as_archie/builder/eval + Block Kit approval buttons
-│   └── search.py         # Tavily web search (used by Archie)
+│   ├── slack_poster.py   # post_as_researcher/coder/evaluator + Block Kit approval buttons
+│   ├── jira_client.py    # Async Jira Cloud REST API v3 client
+│   └── search.py         # Tavily web search (used by Researcher)
 │
 ├── state/
 │   └── manager.py        # SQLite: thread_states + message_map tables
@@ -224,20 +267,27 @@ graph TD
     LangGraph -->|interrupt| SQLiteCheckpointer["SQLite Checkpointer\n(checkpoints.db)"]
     LangGraph -->|update_thread_phase| StateDB["State DB\n(amigos.db)"]
 
-    LangGraph --> ArchieNode["🧠 archie_node"]
-    ArchieNode -->|tool_use| TavilySearch["🔍 Tavily Web Search"]
-    ArchieNode -->|chat_postMessage| SlackAPI
+    LangGraph --> InterviewNode["🧠 interview_node"]
+    InterviewNode -->|scoping questions| SlackAPI
+    InterviewNode -->|waiting_interview phase| StateDB
 
-    LangGraph --> BuilderNode["🔨 builder_node"]
-    BuilderNode -->|chat_postMessage| SlackAPI
+    LangGraph --> ResearcherNode["🧠 researcher_node"]
+    ResearcherNode -->|tool_use| TavilySearch["🔍 Tavily Web Search"]
+    ResearcherNode -->|tool_use| JiraRead["🎫 Jira Read/Create"]
+    ResearcherNode -->|chat_postMessage| SlackAPI
+
+    LangGraph --> CoderNode["🔨 coder_node"]
+    CoderNode -->|PR link + comment| JiraUpdate["🎫 Jira Update"]
+    CoderNode -->|chat_postMessage| SlackAPI
 
     LangGraph --> EvalNode["📊 eval_node"]
     EvalNode -->|chat_postMessage| SlackAPI
 
     LangGraph --> SummaryNode["✅ summary_node"]
+    SummaryNode -->|transition to Done| JiraUpdate
 
-    ArchieNode -->|claude-opus-4-6| AnthropicAPI["Anthropic API"]
-    BuilderNode -->|claude-sonnet-4-6| AnthropicAPI
+    ResearcherNode -->|claude-opus-4-6| AnthropicAPI["Anthropic API"]
+    CoderNode -->|claude-sonnet-4-6| AnthropicAPI
     EvalNode -->|claude-sonnet-4-6| AnthropicAPI
 ```
 
@@ -250,31 +300,63 @@ graph TD
 | Agent orchestration | LangGraph | Built-in `interrupt()` + SQLite checkpointing = rock-solid human-in-the-loop |
 | Web framework | FastAPI + Slack Bolt | Async-native; Bolt handles Slack signature verification |
 | State persistence | SQLite (2 DBs) | Zero-ops; works on free hosting tiers; checkpoints survive restarts |
-| Archie's model | `claude-opus-4-6` | Best reasoning for architecture decisions; justified cost for one-time design phase |
-| Builder's engine | Claude Code CLI (`claude --print`) | Delegates to the same tool-use engine as the IDE plugin; handles bash, files, git, PRs |
-| Eval's model | `claude-sonnet-4-6` | Fast + analytical; cost-efficient for judge tasks |
+| Researcher's model | `claude-opus-4-6` | Best reasoning for architecture decisions; justified cost for one-time design phase |
+| Coder's engine | Claude API (default) or Claude Code CLI | API mode for standard use; set `ARCHIE_USE_CLAUDE_CODE=true` for Max quota |
+| Evaluator's model | `claude-sonnet-4-6` | Fast + analytical; cost-efficient for judge tasks |
 | Approval UX | Block Kit buttons + 👍 + keywords | Three options so the engineer can approve however feels natural |
+| Interview gate | LangGraph `interrupt()` before research | Captures scoping context before any token spend on architecture |
+| Jira integration | REST API v3 + ADF | Full ticket lifecycle: read → create (Researcher) → update (Coder) → close (Summary) |
 | Message chunking | Auto-split at 2 800 chars | Slack's 3 000-char limit; splits on newlines cleanly |
+| Agent names | Configurable via env vars | Rename personas without touching code |
 
 ---
 
 ## Customisation
 
-### Swap models
-Edit `config.py`:
-```python
-ARCHIE_MODEL = "claude-opus-4-6"    # or "claude-sonnet-4-6" to save cost
-BUILDER_MODEL = "claude-sonnet-4-6"
-EVAL_MODEL = "claude-sonnet-4-6"
+### Rename the agents
+In `.env`:
+```env
+RESEARCHER_NAME=Ada
+CODER_NAME=Bob
+EVALUATOR_NAME=Eve
 ```
 
-### Add tools to Builder
-In `agents/builder.py`, add Anthropic `tool_use` definitions (e.g., `read_file`, `run_tests`).
-The Builder already uses the standard agentic loop pattern from Archie — just extend it.
+### Swap models (including OpenAI and Gemini)
+
+Each agent's model lives inside its persona dict in `config.py`. Change the `"model"` value — the provider is detected automatically from the model name prefix:
+
+```python
+RESEARCHER_PERSONA: dict = {
+    ...
+    "model": "claude-opus-4-6",       # Anthropic (default)
+    # "model": "gpt-4o",              # OpenAI
+    # "model": "gemini-2.0-flash",    # Google
+}
+EVALUATOR_PERSONA: dict = {
+    ...
+    "model": "claude-sonnet-4-6",     # Anthropic (default)
+    # "model": "gpt-4o-mini",         # OpenAI
+    # "model": "gemini-2.0-flash",    # Google
+}
+```
+
+| Prefix | Provider | Required env var |
+|--------|----------|-----------------|
+| `claude-*` | Anthropic | `ANTHROPIC_API_KEY` |
+| `gpt-*`, `o1-*`, `o3-*`, `o4-*` | OpenAI | `OPENAI_API_KEY` |
+| `gemini-*` | Google | `GOOGLE_API_KEY` |
+
+> **Note:** The Coder agent uses the Claude Code CLI (`claude --print`) and always requires `ANTHROPIC_API_KEY`, regardless of which model the other agents use.
+
+### Use Claude Code CLI for Researcher
+Set in `.env`:
+```env
+ARCHIE_USE_CLAUDE_CODE=true
+```
+This routes Researcher through the `claude --print` CLI subprocess, consuming Claude Max quota instead of API credits.
 
 ### Add more agents
-Add a new node function in `workflow.py`, register it in `build_graph()`, and add a `post_as_*`
-function in `tools/slack_poster.py`.
+Add a new node function in `workflow.py`, register it in `build_graph()`, and add a `post_as_*` function in `tools/slack_poster.py`.
 
 ---
 
