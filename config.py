@@ -53,17 +53,22 @@ BUILDER_MODEL: str = "claude-sonnet-4-6"
 # Eval gets Sonnet — analytical, cost-efficient for judge tasks
 EVAL_MODEL: str = "claude-sonnet-4-6"
 
+# ── Agent display names (configurable — set in .env to rename your team) ─────────
+RESEARCHER_NAME: str = os.getenv("RESEARCHER_NAME", "Archie")
+CODER_NAME: str = os.getenv("CODER_NAME", "Builder")
+EVALUATOR_NAME: str = os.getenv("EVALUATOR_NAME", "Eval")
+
 # ── Agent Slack personas ───────────────────────────────────────────────────────
 # chat.postMessage allows custom username + icon so each agent looks distinct
-ARCHIE_PERSONA: dict = {
-    "username": "🧠 Archie (AI Architect & Researcher)",
+RESEARCHER_PERSONA: dict = {
+    "username": f"🧠 {RESEARCHER_NAME} (AI Architect & Researcher)",
     "icon_emoji": ":brain:",
 }
-BUILDER_PERSONA: dict = {
-    "username": "🔨 Builder (AI Coder)",
+CODER_PERSONA: dict = {
+    "username": f"🔨 {CODER_NAME} (AI Coder)",
     "icon_emoji": ":hammer:",
 }
-EVAL_PERSONA: dict = {
-    "username": "📊 Eval (AI Evaluator & Red Teamer)",
+EVALUATOR_PERSONA: dict = {
+    "username": f"📊 {EVALUATOR_NAME} (AI Evaluator & Red Teamer)",
     "icon_emoji": ":bar_chart:",
 }

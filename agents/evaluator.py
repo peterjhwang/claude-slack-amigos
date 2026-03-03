@@ -38,7 +38,7 @@ _client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
 class EvalState(TypedDict):
     # Inputs (set once at invocation)
     task: str
-    archie_spec: str
+    researcher_spec: str
     builder_output: str
 
     # Outputs — each node fills its own field
@@ -82,7 +82,7 @@ Include implicit requirements (error handling, logging, type hints, async, etc.)
 """
     text = await _call(
         system,
-        f"Task: {state['task']}\n\nArchie's Spec:\n{state['archie_spec']}"
+        f"Task: {state['task']}\n\nArchie's Spec:\n{state['researcher_spec']}"
     )
     logger.info("[Eval/parse_criteria] Extracted %d chars of criteria", len(text))
     return {"parsed_criteria": text}
@@ -245,7 +245,7 @@ _eval_graph = _build_eval_graph()
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
-async def run_eval(task: str, archie_spec: str, builder_output: str) -> str:
+async def run_eval(task: str, researcher_spec: str, builder_output: str) -> str:
     """
     Run the 4-node Eval pipeline:
       parse_criteria → assess_code → red_team → score_and_verdict
@@ -258,7 +258,7 @@ async def run_eval(task: str, archie_spec: str, builder_output: str) -> str:
     result = await _eval_graph.ainvoke(
         EvalState(
             task=task,
-            archie_spec=archie_spec,
+            researcher_spec=researcher_spec,
             builder_output=builder_output,
             parsed_criteria=None,
             code_assessment=None,

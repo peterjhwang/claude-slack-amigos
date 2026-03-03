@@ -1,6 +1,6 @@
 """
-Archie — AI Architect & Researcher
-====================================
+Researcher — AI Architect & Researcher
+=======================================
 Default mode:  LangGraph `create_react_agent` (prebuilt ReAct loop)
 Optional mode: Claude Code CLI subprocess (set ARCHIE_USE_CLAUDE_CODE=true)
 
@@ -52,6 +52,7 @@ from config import (
     JIRA_EMAIL,
     JIRA_PROJECT_KEY,
     JIRA_URL,
+    RESEARCHER_NAME,
 )
 from tools import jira_client
 from tools.search import web_search as _do_web_search
@@ -153,7 +154,7 @@ You have access to Jira tools:
     )
 
     return f"""\
-You are Archie, the AI Architect & Researcher of the 3 Amigos AI engineering team.
+You are {RESEARCHER_NAME}, the AI Architect & Researcher of the 3 Amigos AI engineering team.
 You work for an expert AI engineer who uses Claude Max for production systems.
 
 ## Your ReAct Loop
@@ -373,7 +374,7 @@ async def _run_archie_react(task: str) -> str:
 
 # ── Public entry point ─────────────────────────────────────────────────────────
 
-async def run_archie(task: str) -> tuple[str, str | None]:
+async def run_researcher(task: str) -> tuple[str, str | None]:
     """
     Run Archie for the given task.
 
@@ -385,7 +386,7 @@ async def run_archie(task: str) -> tuple[str, str | None]:
         (output_text, jira_ticket_key)
         jira_ticket_key is the Jira Story key Archie created for Builder, or None.
     """
-    logger.info("[Archie] Starting for: %s (mode=%s)", task[:120],
+    logger.info("[Researcher] Starting for: %s (mode=%s)", task[:120],
                 "claude-code" if ARCHIE_USE_CLAUDE_CODE else "react")
 
     if ARCHIE_USE_CLAUDE_CODE:

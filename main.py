@@ -37,7 +37,7 @@ from state.manager import (
     init_db,
 )
 from tools import jira_client
-from tools.slack_poster import post_as_archie
+from tools.slack_poster import post_as_researcher
 
 logging.basicConfig(
     level=logging.INFO,
@@ -134,20 +134,20 @@ async def handle_mention(event: dict, client: AsyncWebClient):
         ticket_key = jira_match.group(1).upper()
         issue = await jira_client.get_issue(ticket_key)
         if "error" not in issue:
-            await post_as_archie(
+            await post_as_researcher(
                 client, channel_id, thread_ts,
                 f"📋 *Loaded Jira ticket {ticket_key}:* {issue['summary']}\n{issue['url']}",
             )
             task = f"[{ticket_key}] {issue['summary']}\n\n{issue['description']}"
         else:
-            await post_as_archie(
+            await post_as_researcher(
                 client, channel_id, thread_ts,
                 f"⚠️ Could not load Jira ticket `{ticket_key}`: {issue['error']}\n"
                 "Treating it as a plain task description.",
             )
 
     if not task:
-        await post_as_archie(
+        await post_as_researcher(
             client, channel_id, thread_ts,
             "👋 *Hey! I'm the 3 Amigos bot.*\n\n"
             "Give me a task and the whole team will handle it:\n"
@@ -161,7 +161,7 @@ async def handle_mention(event: dict, client: AsyncWebClient):
     # Guard: don't start a second workflow in the same thread
     existing = await get_thread_state(thread_ts)
     if existing and existing["phase"] not in ("done", "error"):
-        await post_as_archie(
+        await post_as_researcher(
             client, channel_id, thread_ts,
             f"⚠️ There's already an active workflow in this thread "
             f"(phase: `{existing['phase']}`). "
@@ -174,7 +174,7 @@ async def handle_mention(event: dict, client: AsyncWebClient):
     # Persist thread state and post welcome
     await create_thread_state(thread_ts, channel_id, task)
 
-    await post_as_archie(
+    await post_as_researcher(
         client, channel_id, thread_ts,
         f"🎯 *3 Amigos on it!* Task received:\n\n_{task}_\n\n"
         "Here's the plan:\n"

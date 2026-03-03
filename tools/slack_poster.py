@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from slack_sdk.web.async_client import AsyncWebClient
 
-from config import ARCHIE_PERSONA, BUILDER_PERSONA, EVAL_PERSONA
+from config import RESEARCHER_PERSONA, CODER_PERSONA, EVALUATOR_PERSONA
 
 # Slack Block Kit section text limit (hard limit is 3 000; we keep a buffer)
 _CHUNK_LIMIT = 2_800
@@ -71,34 +71,34 @@ async def post_as(
     return resp["ts"]
 
 
-async def post_as_archie(
+async def post_as_researcher(
     client: AsyncWebClient,
     channel: str,
     thread_ts: str,
     text: str,
     blocks: list | None = None,
 ) -> str:
-    return await post_as(client, channel, thread_ts, text, ARCHIE_PERSONA, blocks)
+    return await post_as(client, channel, thread_ts, text, RESEARCHER_PERSONA, blocks)
 
 
-async def post_as_builder(
+async def post_as_coder(
     client: AsyncWebClient,
     channel: str,
     thread_ts: str,
     text: str,
     blocks: list | None = None,
 ) -> str:
-    return await post_as(client, channel, thread_ts, text, BUILDER_PERSONA, blocks)
+    return await post_as(client, channel, thread_ts, text, CODER_PERSONA, blocks)
 
 
-async def post_as_eval(
+async def post_as_evaluator(
     client: AsyncWebClient,
     channel: str,
     thread_ts: str,
     text: str,
     blocks: list | None = None,
 ) -> str:
-    return await post_as(client, channel, thread_ts, text, EVAL_PERSONA, blocks)
+    return await post_as(client, channel, thread_ts, text, EVALUATOR_PERSONA, blocks)
 
 
 def make_approval_blocks(prompt_text: str, phase: str) -> list:

@@ -1,5 +1,5 @@
 """
-Builder — AI Coder (powered by Claude Code CLI)
+Coder — AI Coder (powered by Claude Code CLI)
 ================================================
 Instead of running an in-process agentic loop, Builder delegates all coding
 to the Claude Code CLI (`claude --print`), which is the same engine that
@@ -81,7 +81,7 @@ async def _setup_workspace(build_id: str) -> tuple[Path, str]:
             f"git clone --depth 1 --branch {GITHUB_BASE_BRANCH} {clone_url} {build_id}",
         )
         if rc != 0:
-            logger.warning("[Builder] Clone failed (%s), falling back to git init", out[:200])
+            logger.warning("[Coder] Clone failed (%s), falling back to git init", out[:200])
             await _bash(build_dir, "git init")
     else:
         # No GitHub config -- local-only sandbox
@@ -89,7 +89,7 @@ async def _setup_workspace(build_id: str) -> tuple[Path, str]:
 
     # Create the feature branch
     await _bash(build_dir, f"git checkout -b {branch}")
-    logger.info("[Builder] Workspace ready: %s (branch: %s)", build_dir, branch)
+    logger.info("[Coder] Workspace ready: %s (branch: %s)", build_dir, branch)
     return build_dir, branch
 
 
@@ -113,7 +113,7 @@ async def _create_pr(build_dir: Path, branch: str, task: str) -> str | None:
     # Push
     rc, out = await _bash(build_dir, f"git push -u origin {branch}", gh_env)
     if rc != 0:
-        logger.warning("[Builder] Push failed: %s", out[:300])
+        logger.warning("[Coder] Push failed: %s", out[:300])
         return None
 
     # Create PR with gh CLI
@@ -134,14 +134,14 @@ async def _create_pr(build_dir: Path, branch: str, task: str) -> str | None:
         gh_env,
     )
     if rc != 0:
-        logger.warning("[Builder] gh pr create failed: %s", out[:300])
+        logger.warning("[Coder] gh pr create failed: %s", out[:300])
         return None
 
     # gh pr create prints the PR URL as the last line
     for line in reversed(out.splitlines()):
         line = line.strip()
         if line.startswith("https://github.com/"):
-            logger.info("[Builder] PR created: %s", line)
+            logger.info("[Coder] PR created: %s", line)
             return line
 
     return None
@@ -178,7 +178,7 @@ async def _run_claude_code(
         "CLAUDE_CODE_SKIP_TELEMETRY": "1",
     }
 
-    logger.info("[Builder] Launching Claude Code CLI in %s", build_dir)
+    logger.info("[Coder] Launching Claude Code CLI in %s", build_dir)
 
     proc = await asyncio.create_subprocess_exec(
         *cmd,
@@ -227,7 +227,7 @@ async def _run_claude_code(
                 final_result = event.get("result", "")
                 num_turns = event.get("num_turns", tool_count)
                 logger.info(
-                    "[Builder] Claude Code done. turns=%d result_len=%d",
+                    "[Coder] Claude Code done. turns=%d result_len=%d",
                     num_turns, len(final_result),
                 )
 
@@ -238,12 +238,12 @@ async def _run_claude_code(
         )
     except asyncio.TimeoutError:
         proc.kill()
-        logger.error("[Builder] Claude Code timed out after %ds", _CLAUDE_CODE_TIMEOUT)
+        logger.error("[Coder] Claude Code timed out after %ds", _CLAUDE_CODE_TIMEOUT)
         return f"Claude Code timed out after {_CLAUDE_CODE_TIMEOUT // 60} minutes."
 
     if proc.returncode not in (0, None):
         stderr = (await proc.stderr.read()).decode(errors="replace")[:500]
-        logger.error("[Builder] Claude Code exited %d: %s", proc.returncode, stderr)
+        logger.error("[Coder] Claude Code exited %d: %s", proc.returncode, stderr)
         return f"Claude Code exited with code {proc.returncode}.\n```\n{stderr}\n```"
 
     return final_result or "Claude Code completed (no result text captured)."
@@ -251,7 +251,7 @@ async def _run_claude_code(
 
 # -- Public entry point --------------------------------------------------------
 
-async def run_builder(
+async def run_coder(
     task: str,
     archie_spec: str,
     build_id: str = "default",

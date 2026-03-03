@@ -34,15 +34,15 @@ from langgraph.graph import END, StateGraph
 from langgraph.types import Command, interrupt
 from slack_sdk.web.async_client import AsyncWebClient
 
-from agents.archie import run_archie
-from agents.builder import run_builder
+from agents.researcher import run_researcher
+from agents.coder import run_coder
 from agents.evaluator import run_eval
 from state.manager import register_agent_message, update_thread_phase
 from tools.slack_poster import (
     make_approval_blocks,
-    post_as_archie,
-    post_as_builder,
-    post_as_eval,
+    post_as_researcher,
+    post_as_coder,
+    post_as_evaluator,
 )
 
 logger = logging.getLogger(__name__)
@@ -96,28 +96,28 @@ async def archie_node(state: AmigosState) -> dict:
 
     logger.info("[Archie] Starting for thread %s", thread_ts)
 
-    await post_as_archie(
+    await post_as_researcher(
         client, channel_id, thread_ts,
         "🔍 *Researching your task...* I'll post the full architecture + spec shortly. "
         "Sit tight — this usually takes 30–60 s.",
     )
 
     try:
-        archie_output, jira_ticket_key = await run_archie(task)
+        archie_output, jira_ticket_key = await run_researcher(task)
     except Exception as exc:
         logger.exception("[Archie] Research failed")
-        await post_as_archie(
+        await post_as_researcher(
             client, channel_id, thread_ts,
             f"❌ *Research error:* `{exc}`\nPlease try again or simplify the task.",
         )
         raise
 
     # Post the architecture (may be split across multiple messages)
-    await post_as_archie(client, channel_id, thread_ts, archie_output)
+    await post_as_researcher(client, channel_id, thread_ts, archie_output)
 
     # If Archie created a Jira ticket, surface it prominently in Slack
     if jira_ticket_key:
-        await post_as_archie(
+        await post_as_researcher(
             client, channel_id, thread_ts,
             f"🎫 *Jira ticket created for Builder:* `{jira_ticket_key}`\n"
             "_Builder will pick this up and update the ticket with the PR link._",
@@ -129,7 +129,7 @@ async def archie_node(state: AmigosState) -> dict:
         "React 👍 or click *Approve* to hand off to Builder.",
         "archie",
     )
-    approval_ts = await post_as_archie(
+    approval_ts = await post_as_researcher(
         client, channel_id, thread_ts,
         "✋ *Ready for your sign-off!* Click Approve or react 👍 to this message.",
         blocks=approval_blocks,
@@ -167,7 +167,7 @@ async def builder_node(state: AmigosState) -> dict:
 
     logger.info("[Builder] Starting for thread %s (jira=%s)", thread_ts, jira_ticket_key)
 
-    await post_as_builder(
+    await post_as_coder(
         client, channel_id, thread_ts,
         "🔨 *Building based on Archie's architecture...*\n"
         "I have bash + file access — actually writing and running code now. "
@@ -177,10 +177,10 @@ async def builder_node(state: AmigosState) -> dict:
 
     # Progress updates are posted back into the same thread
     async def _progress(msg: str) -> None:
-        await post_as_builder(client, channel_id, thread_ts, msg)
+        await post_as_coder(client, channel_id, thread_ts, msg)
 
     try:
-        builder_output, pr_url = await run_builder(
+        builder_output, pr_url = await run_coder(
             task,
             archie_output,
             build_id=thread_ts,           # isolated sandbox per thread
@@ -189,24 +189,24 @@ async def builder_node(state: AmigosState) -> dict:
         )
     except Exception as exc:
         logger.exception("[Builder] Build failed")
-        await post_as_builder(
+        await post_as_coder(
             client, channel_id, thread_ts,
             f"❌ *Build error:* `{exc}`\nCheck logs and retry.",
         )
         raise
 
     # Post the build summary
-    await post_as_builder(client, channel_id, thread_ts, builder_output)
+    await post_as_coder(client, channel_id, thread_ts, builder_output)
 
     # Post the PR link as a prominent standalone message (or a note if no PR)
     if pr_url:
-        await post_as_builder(
+        await post_as_coder(
             client, channel_id, thread_ts,
             f"🔗 *Pull Request opened:*\n{pr_url}\n\n"
             "_Review the code on GitHub, then come back here to approve Eval._",
         )
     else:
-        await post_as_builder(
+        await post_as_coder(
             client, channel_id, thread_ts,
             "ℹ️ _No GITHUB_REPO configured — code was built locally. "
             "Set `GITHUB_TOKEN` + `GITHUB_REPO` in `.env` to get automatic PRs._",
@@ -217,7 +217,7 @@ async def builder_node(state: AmigosState) -> dict:
         "React 👍 or click *Approve* to send to Eval.",
         "builder",
     )
-    approval_ts = await post_as_builder(
+    approval_ts = await post_as_coder(
         client, channel_id, thread_ts,
         "✋ *Implementation complete!* Approve to run Eval, or request changes.",
         blocks=approval_blocks,
@@ -253,7 +253,7 @@ async def eval_node(state: AmigosState) -> dict:
 
     logger.info("[Eval] Starting for thread %s", thread_ts)
 
-    await post_as_eval(
+    await post_as_evaluator(
         client, channel_id, thread_ts,
         "📊 *Running evaluations & red-team testing...* "
         "Checking all acceptance criteria. Back shortly!",
@@ -261,23 +261,23 @@ async def eval_node(state: AmigosState) -> dict:
     await update_thread_phase(thread_ts, "evaluating")
 
     try:
-        eval_output = await run_eval(task, archie_output, builder_output)
+        eval_output = await run_eval(task, archie_output, builder_output)  # archie_output used as researcher_spec
     except Exception as exc:
         logger.exception("[Eval] Eval failed")
-        await post_as_eval(
+        await post_as_evaluator(
             client, channel_id, thread_ts,
             f"❌ *Eval error:* `{exc}`\nCheck logs.",
         )
         raise
 
-    await post_as_eval(client, channel_id, thread_ts, eval_output)
+    await post_as_evaluator(client, channel_id, thread_ts, eval_output)
 
     approval_blocks = make_approval_blocks(
         "*Eval has completed testing!* "
         "React 👍 or click *Approve* for final sign-off.",
         "eval",
     )
-    approval_ts = await post_as_eval(
+    approval_ts = await post_as_evaluator(
         client, channel_id, thread_ts,
         "✋ *Eval complete!* Final sign-off to wrap up the mission.",
         blocks=approval_blocks,
@@ -303,9 +303,9 @@ async def summary_node(state: AmigosState) -> dict:
     thread_ts = state["thread_ts"]
     jira_ticket_key = state.get("jira_ticket_key")
 
-    await post_as_archie(client, channel_id, thread_ts, "✅ Architecture locked and approved.")
-    await post_as_builder(client, channel_id, thread_ts, "✅ Code complete and approved.")
-    await post_as_eval(
+    await post_as_researcher(client, channel_id, thread_ts, "✅ Architecture locked and approved.")
+    await post_as_coder(client, channel_id, thread_ts, "✅ Code complete and approved.")
+    await post_as_evaluator(
         client, channel_id, thread_ts,
         "✅ Evals passed and approved. Mission accomplished! 🚀",
     )
@@ -324,7 +324,7 @@ async def summary_node(state: AmigosState) -> dict:
         f"• 📊 *Evals passed* — Eval's sign-off granted{jira_line}\n\n"
         "_Ready for your final deployment. React 👍 or ping us with a new task!_"
     )
-    await post_as_archie(client, channel_id, thread_ts, final)
+    await post_as_researcher(client, channel_id, thread_ts, final)
     await update_thread_phase(thread_ts, "done")
 
     # Transition Jira ticket to Done
