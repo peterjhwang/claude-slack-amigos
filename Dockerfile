@@ -17,7 +17,8 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 
 # ── Claude Code CLI ───────────────────────────────────────────────────────────
 # Builder delegates all coding tasks to this — same tool-use engine as the IDE plugin
-RUN npm install -g @anthropic-ai/claude-code
+# Install via official script (more reliable than npm in Docker)
+RUN curl -fsSL https://claude.ai/install.sh | bash
 
 # ── GitHub CLI (gh) ───────────────────────────────────────────────────────────
 # Builder uses `gh pr create` to open PRs and capture the URL
