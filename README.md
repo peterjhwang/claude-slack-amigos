@@ -1,6 +1,16 @@
 # 3 Amigos — AI Engineering Team in Slack
 
+[![CI](https://github.com/CrazyCatapultCollective/claude-slack-amigos/actions/workflows/ci.yml/badge.svg)](https://github.com/CrazyCatapultCollective/claude-slack-amigos/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)
+[![Powered by Claude](https://img.shields.io/badge/powered%20by-Claude%20Max-orange)](https://anthropic.com)
+
 A single `@amigos` Slack bot that runs three specialist AI agents in sequence, each with its own personality and a human approval gate between phases.
+
+> **Demo**
+>
+> <!-- GIF: full @amigos workflow — Archie posts architecture, engineer reacts 👍, Builder opens PR, Eval posts scorecard -->
+> ![3 Amigos full workflow demo](docs/demo-full-workflow.gif)
 
 | Agent | Persona | Model | Superpower |
 |-------|---------|-------|------------|
@@ -36,6 +46,22 @@ You:      @amigos Build a RAG pipeline with Claude + Pinecone
 ### Requesting changes
 - Click **✏️ Request Changes** button, then reply: `changes: <your instructions>`
 - Or type `changes: <your instructions>` directly in the thread
+
+---
+
+## Screenshots
+
+### 🧠 Archie — Architecture + Mermaid diagram
+<!-- GIF: Archie posting the research summary, Mermaid diagram, spec, and approval buttons -->
+![Archie architecture output](docs/demo-archie.gif)
+
+### 🔨 Builder — Claude Code running + PR opened
+<!-- GIF: Builder streaming progress updates then posting the GitHub PR link -->
+![Builder opening a PR](docs/demo-builder.gif)
+
+### 📊 Eval — Red-team scorecard
+<!-- GIF: Eval posting the metrics table, red-team findings, and verdict -->
+![Eval scorecard](docs/demo-eval.gif)
 
 ---
 
@@ -157,7 +183,7 @@ claude-slack-amigos/
 │
 ├── agents/
 │   ├── archie.py         # Research + architecture (claude-opus-4-6, web search tool)
-│   ├── builder.py        # Code generation (claude-sonnet-4-6, 16k token budget)
+│   ├── builder.py        # Claude Code CLI subprocess: clone → build → push → PR
 │   └── evaluator.py      # LLM-as-judge + red-teaming (claude-sonnet-4-6)
 │
 ├── tools/
@@ -225,7 +251,8 @@ graph TD
 | Web framework | FastAPI + Slack Bolt | Async-native; Bolt handles Slack signature verification |
 | State persistence | SQLite (2 DBs) | Zero-ops; works on free hosting tiers; checkpoints survive restarts |
 | Archie's model | `claude-opus-4-6` | Best reasoning for architecture decisions; justified cost for one-time design phase |
-| Builder/Eval model | `claude-sonnet-4-6` | Fast + capable; cost-efficient for longer code/eval outputs |
+| Builder's engine | Claude Code CLI (`claude --print`) | Delegates to the same tool-use engine as the IDE plugin; handles bash, files, git, PRs |
+| Eval's model | `claude-sonnet-4-6` | Fast + analytical; cost-efficient for judge tasks |
 | Approval UX | Block Kit buttons + 👍 + keywords | Three options so the engineer can approve however feels natural |
 | Message chunking | Auto-split at 2 800 chars | Slack's 3 000-char limit; splits on newlines cleanly |
 
@@ -251,6 +278,16 @@ function in `tools/slack_poster.py`.
 
 ---
 
+## Contributing
+
+PRs and issues welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions and guidelines.
+
+## Security
+
+This bot handles Slack tokens, Anthropic API keys, and GitHub tokens.
+Please review [SECURITY.md](SECURITY.md) before deploying, and **never** commit `.env` to git.
+To report a vulnerability privately, see the [security policy](SECURITY.md).
+
 ## License
 
-MIT
+[MIT](LICENSE) © 2025 Crazy Catapult Collective

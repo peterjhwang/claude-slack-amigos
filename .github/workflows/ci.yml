@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Syntax & style check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Check all Python files parse cleanly
+        run: |
+          python - <<'EOF'
+          import ast, pathlib, sys
+          errors = []
+          for f in pathlib.Path(".").rglob("*.py"):
+              try:
+                  ast.parse(f.read_text())
+              except SyntaxError as e:
+                  errors.append(f"{f}: {e}")
+          if errors:
+              for e in errors:
+                  print("SYNTAX ERROR:", e)
+              sys.exit(1)
+          print(f"All {sum(1 for _ in pathlib.Path('.').rglob('*.py'))} .py files OK")
+          EOF
+
+      - name: Verify no secrets committed
+        run: |
+          # Fail if any file looks like it contains a real API key
+          if grep -rE \
+            'sk-ant-[a-zA-Z0-9]{20,}|xoxb-[a-zA-Z0-9-]{30,}|ghp_[a-zA-Z0-9]{36}|tvly-[a-zA-Z0-9]{20,}' \
+            --include="*.py" --include="*.yml" --include="*.yaml" --include="*.env" \
+            --exclude-dir=".git" .; then
+            echo "Possible secret detected in committed files!"
+            exit 1
+          fi
+          echo "No secrets found."
+
+      - name: Check .env is gitignored
+        run: |
+          if git ls-files --error-unmatch .env 2>/dev/null; then
+            echo ".env is tracked by git — remove it immediately!"
+            exit 1
+          fi
+          echo ".env is correctly gitignored."
