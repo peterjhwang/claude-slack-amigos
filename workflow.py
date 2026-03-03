@@ -15,6 +15,11 @@ main.py calls resume_workflow() which does:
 The interrupt() call returns "approve" and the node completes normally,
 then the next node starts.
 
+Jira integration
+-----------------
+If Archie creates a Jira ticket for Builder, its key is stored in `jira_ticket_key`.
+Builder reads this from state and updates the Jira ticket with the PR link + comment.
+
 Module-level singletons
 ------------------------
   slack_client  — AsyncWebClient injected by main.py's lifespan
@@ -61,6 +66,8 @@ class AmigosState(TypedDict):
     archie_msg_ts: Optional[str]
     builder_msg_ts: Optional[str]
     eval_msg_ts: Optional[str]
+    # Jira ticket Archie creates for Builder to pick up (None if Jira not configured)
+    jira_ticket_key: Optional[str]
 
 
 # ── Helper ─────────────────────────────────────────────────────────────────────
@@ -78,8 +85,9 @@ async def archie_node(state: AmigosState) -> dict:
     1. Post "starting" ack to Slack
     2. Run Archie's research + architecture design
     3. Post full output (auto-chunked for long messages)
-    4. Post approval buttons as a follow-up message
-    5. interrupt() — pauses until engineer approves
+    4. Post Jira ticket notification (if created)
+    5. Post approval buttons as a follow-up message
+    6. interrupt() — pauses until engineer approves
     """
     client = _require_client()
     channel_id = state["channel_id"]
@@ -95,7 +103,7 @@ async def archie_node(state: AmigosState) -> dict:
     )
 
     try:
-        archie_output = await run_archie(task)
+        archie_output, jira_ticket_key = await run_archie(task)
     except Exception as exc:
         logger.exception("[Archie] Research failed")
         await post_as_archie(
@@ -106,6 +114,14 @@ async def archie_node(state: AmigosState) -> dict:
 
     # Post the architecture (may be split across multiple messages)
     await post_as_archie(client, channel_id, thread_ts, archie_output)
+
+    # If Archie created a Jira ticket, surface it prominently in Slack
+    if jira_ticket_key:
+        await post_as_archie(
+            client, channel_id, thread_ts,
+            f"🎫 *Jira ticket created for Builder:* `{jira_ticket_key}`\n"
+            "_Builder will pick this up and update the ticket with the PR link._",
+        )
 
     # Approval gate message
     approval_blocks = make_approval_blocks(
@@ -129,24 +145,27 @@ async def archie_node(state: AmigosState) -> dict:
     return {
         "archie_output": archie_output,
         "archie_msg_ts": approval_ts,
+        "jira_ticket_key": jira_ticket_key,
     }
 
 
 async def builder_node(state: AmigosState) -> dict:
     """
     1. Post "starting" ack
-    2. Run Builder's agentic loop (bash + file I/O — real Claude Code-style execution)
-    3. Upload the zipped project to Slack
-    4. Post approval buttons
-    5. interrupt() — pauses until engineer approves
+    2. Run Builder's agentic loop (Claude Code CLI)
+    3. Post build summary + PR link
+    4. Update Jira ticket with PR link + transition to In Review (if configured)
+    5. Post approval buttons
+    6. interrupt() — pauses until engineer approves
     """
     client = _require_client()
     channel_id = state["channel_id"]
     thread_ts = state["thread_ts"]
     task = state["task"]
     archie_output = state["archie_output"] or ""
+    jira_ticket_key = state.get("jira_ticket_key")
 
-    logger.info("[Builder] Starting for thread %s", thread_ts)
+    logger.info("[Builder] Starting for thread %s (jira=%s)", thread_ts, jira_ticket_key)
 
     await post_as_builder(
         client, channel_id, thread_ts,
@@ -164,8 +183,9 @@ async def builder_node(state: AmigosState) -> dict:
         builder_output, pr_url = await run_builder(
             task,
             archie_output,
-            build_id=thread_ts,          # isolated sandbox per thread
+            build_id=thread_ts,           # isolated sandbox per thread
             progress_callback=_progress,
+            jira_ticket_key=jira_ticket_key,
         )
     except Exception as exc:
         logger.exception("[Builder] Build failed")
@@ -277,10 +297,11 @@ async def eval_node(state: AmigosState) -> dict:
 
 
 async def summary_node(state: AmigosState) -> dict:
-    """Post the tri-agent closing summary and mark the thread as done."""
+    """Post the tri-agent closing summary, close Jira ticket, mark thread done."""
     client = _require_client()
     channel_id = state["channel_id"]
     thread_ts = state["thread_ts"]
+    jira_ticket_key = state.get("jira_ticket_key")
 
     await post_as_archie(client, channel_id, thread_ts, "✅ Architecture locked and approved.")
     await post_as_builder(client, channel_id, thread_ts, "✅ Code complete and approved.")
@@ -289,16 +310,27 @@ async def summary_node(state: AmigosState) -> dict:
         "✅ Evals passed and approved. Mission accomplished! 🚀",
     )
 
+    jira_line = (
+        f"\n• 🎫 *Jira `{jira_ticket_key}` transitioned to Done*"
+        if jira_ticket_key
+        else ""
+    )
+
     final = (
         "---\n"
         "*✅ 3 Amigos — Mission Complete!*\n\n"
         "• 🧠 *Architecture locked* — Archie's spec approved\n"
         "• 🔨 *Code complete* — Builder's implementation approved\n"
-        "• 📊 *Evals passed* — Eval's sign-off granted\n\n"
+        f"• 📊 *Evals passed* — Eval's sign-off granted{jira_line}\n\n"
         "_Ready for your final deployment. React 👍 or ping us with a new task!_"
     )
     await post_as_archie(client, channel_id, thread_ts, final)
     await update_thread_phase(thread_ts, "done")
+
+    # Transition Jira ticket to Done
+    if jira_ticket_key:
+        from tools import jira_client
+        await jira_client.transition_issue(jira_ticket_key, "Done")
 
     return {}
 
@@ -311,20 +343,20 @@ def build_graph(checkpointer) -> object:
     The checkpointer persists interrupted state so resume_workflow() works
     even after a server restart.
     """
-    builder = StateGraph(AmigosState)
+    sg = StateGraph(AmigosState)
 
-    builder.add_node("archie", archie_node)
-    builder.add_node("builder", builder_node)
-    builder.add_node("eval", eval_node)
-    builder.add_node("summary", summary_node)
+    sg.add_node("archie", archie_node)
+    sg.add_node("builder", builder_node)
+    sg.add_node("eval", eval_node)
+    sg.add_node("summary", summary_node)
 
-    builder.set_entry_point("archie")
-    builder.add_edge("archie", "builder")
-    builder.add_edge("builder", "eval")
-    builder.add_edge("eval", "summary")
-    builder.add_edge("summary", END)
+    sg.set_entry_point("archie")
+    sg.add_edge("archie", "builder")
+    sg.add_edge("builder", "eval")
+    sg.add_edge("eval", "summary")
+    sg.add_edge("summary", END)
 
-    return builder.compile(checkpointer=checkpointer)
+    return sg.compile(checkpointer=checkpointer)
 
 
 # ── Public control functions (called from main.py) ─────────────────────────────
@@ -342,6 +374,7 @@ async def start_workflow(task: str, channel_id: str, thread_ts: str) -> None:
         "archie_msg_ts": None,
         "builder_msg_ts": None,
         "eval_msg_ts": None,
+        "jira_ticket_key": None,
     }
     try:
         await graph.ainvoke(initial_state, config)

@@ -38,6 +38,7 @@ from config import (
     GITHUB_REPO,
     GITHUB_TOKEN,
 )
+from tools import jira_client
 
 logger = logging.getLogger(__name__)
 
@@ -255,10 +256,14 @@ async def run_builder(
     archie_spec: str,
     build_id: str = "default",
     progress_callback: Callable[[str], Awaitable[None]] | None = None,
+    jira_ticket_key: str | None = None,
 ) -> tuple[str, str | None]:
     """
     Run Builder end-to-end:
       clone/init → spec file → Claude Code CLI → commit → push → PR → summary
+
+    If jira_ticket_key is provided, adds a PR comment to the Jira ticket and
+    transitions it to "In Review" once the PR is opened.
 
     Returns:
       (summary_text, pr_url)
@@ -293,6 +298,17 @@ async def run_builder(
 
     # Push + open PR
     pr_url = await _create_pr(build_dir, branch, task)
+
+    # Update Jira ticket with PR link (if configured)
+    if jira_ticket_key and pr_url:
+        await jira_client.add_comment(
+            jira_ticket_key,
+            f"3 Amigos Builder has completed the implementation.\n\n"
+            f"Pull Request: {pr_url}\n"
+            f"Branch: {branch}\n\n"
+            "Transitioning to In Review — Eval will run next.",
+        )
+        await jira_client.transition_issue(jira_ticket_key, "In Review")
 
     # Build the summary report
     built_files = sorted(

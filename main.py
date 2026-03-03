@@ -36,6 +36,7 @@ from state.manager import (
     get_thread_state,
     init_db,
 )
+from tools import jira_client
 from tools.slack_poster import post_as_archie
 
 logging.basicConfig(
@@ -43,6 +44,9 @@ logging.basicConfig(
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# Regex to detect a bare Jira ticket key like "PROJ-123" or "ABC-42"
+_JIRA_KEY_RE = re.compile(r"^([A-Z][A-Z0-9]+-\d+)$")
 
 # ── Slack App ──────────────────────────────────────────────────────────────────
 slack_app = AsyncApp(
@@ -122,6 +126,25 @@ async def handle_mention(event: dict, client: AsyncWebClient):
 
     # Strip the bot mention tag(s)
     task = re.sub(r"<@[A-Z0-9]+>", "", text).strip()
+
+    # If the task is just a Jira ticket key (e.g., @amigos PROJ-123),
+    # auto-fetch the ticket description and use it as the task.
+    jira_match = _JIRA_KEY_RE.match(task)
+    if jira_match:
+        ticket_key = jira_match.group(1).upper()
+        issue = await jira_client.get_issue(ticket_key)
+        if "error" not in issue:
+            await post_as_archie(
+                client, channel_id, thread_ts,
+                f"📋 *Loaded Jira ticket {ticket_key}:* {issue['summary']}\n{issue['url']}",
+            )
+            task = f"[{ticket_key}] {issue['summary']}\n\n{issue['description']}"
+        else:
+            await post_as_archie(
+                client, channel_id, thread_ts,
+                f"⚠️ Could not load Jira ticket `{ticket_key}`: {issue['error']}\n"
+                "Treating it as a plain task description.",
+            )
 
     if not task:
         await post_as_archie(
