@@ -255,6 +255,36 @@ def _extract_jira_key(text: str) -> str | None:
     return None
 
 
+
+# ── Interview: scoping questions before research starts ────────────────────────
+
+_INTERVIEW_SYSTEM = """You are a senior AI architect scoping a project before starting design.
+Generate 3-5 concise, targeted questions to fully understand the task requirements.
+
+Focus on:
+- Intended users and their technical level
+- Expected scale (requests/day, data size, concurrent users)
+- Existing tech stack or hard constraints
+- Priority trade-offs (latency vs cost vs accuracy)
+- Any compliance, security, or availability requirements
+
+Format: a numbered list, one question per line. No preamble, no closing remarks.
+Keep each question to a single sentence. Be specific to the task context.
+"""
+
+
+async def generate_interview_questions(task: str) -> str:
+    """
+    Use the researcher model to generate scoping questions for a task.
+    Returns a numbered list string ready to paste into Slack.
+    """
+    logger.info("[Researcher/interview] Generating scoping questions for: %s", task[:80])
+    from langchain_core.messages import HumanMessage, SystemMessage
+    result = await _llm.ainvoke(
+        [SystemMessage(content=_INTERVIEW_SYSTEM), HumanMessage(content=f"Task: {task}")]
+    )
+    return _extract_text(result.content)
+
 # ── Claude Code CLI path (ARCHIE_USE_CLAUDE_CODE=true) ────────────────────────
 
 async def _run_archie_with_claude_code(task: str) -> str:

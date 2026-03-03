@@ -294,7 +294,7 @@ async def handle_changes_button(ack, body: dict, client: AsyncWebClient):
 @slack_app.event("message")
 async def handle_thread_message(event: dict):
     """
-    Parse thread replies for approval keywords or "changes: ..." instructions.
+    Parse thread replies for interview answers, approval keywords, or "changes: ..." instructions.
     Ignores bot messages and top-level (non-thread) messages.
     """
     # Ignore bot posts and message edits/deletes
@@ -305,11 +305,18 @@ async def handle_thread_message(event: dict):
     if not thread_ts:
         return  # Top-level message — ignore
 
-    text = (event.get("text") or "").strip().lower()
+    raw_text = (event.get("text") or "").strip()   # preserve original case for interview answers
+    text = raw_text.lower()
 
     # Check if there's an active amigos workflow in this thread
     state = await get_thread_state(thread_ts)
     if not state or state["phase"] in ("done", "error"):
+        return
+
+    # Interview response — any non-empty reply during the scoping interview phase
+    if state["phase"] == "waiting_interview" and raw_text:
+        logger.info("Interview answer received in thread %s", thread_ts)
+        asyncio.create_task(workflow.resume_workflow(thread_ts, raw_text))
         return
 
     # Keywords that mean "approve"

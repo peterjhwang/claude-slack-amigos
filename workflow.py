@@ -34,7 +34,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.types import Command, interrupt
 from slack_sdk.web.async_client import AsyncWebClient
 
-from agents.researcher import run_researcher
+from agents.researcher import generate_interview_questions, run_researcher
 from agents.coder import run_coder
 from agents.evaluator import run_eval
 from state.manager import register_agent_message, update_thread_phase
@@ -66,6 +66,8 @@ class AmigosState(TypedDict):
     archie_msg_ts: Optional[str]
     builder_msg_ts: Optional[str]
     eval_msg_ts: Optional[str]
+    # Answers collected during the pre-research interview (None if interview skipped)
+    interview_answers: Optional[str]
     # Jira ticket Archie creates for Builder to pick up (None if Jira not configured)
     jira_ticket_key: Optional[str]
 
@@ -80,6 +82,43 @@ def _require_client() -> AsyncWebClient:
 
 # ── Nodes ──────────────────────────────────────────────────────────────────────
 
+async def interview_node(state: AmigosState) -> dict:
+    """
+    Interviews the engineer before Archie starts researching.
+
+    1. Uses the researcher model to generate 3-5 task-specific scoping questions
+    2. Posts questions to Slack
+    3. interrupt() — pauses until the engineer replies in the thread
+    4. Stores their answer in state so archie_node can use it to enrich the task
+    """
+    client = _require_client()
+    channel_id = state["channel_id"]
+    thread_ts = state["thread_ts"]
+    task = state["task"]
+
+    logger.info("[Interview] Generating scoping questions for thread %s", thread_ts)
+
+    try:
+        questions = await generate_interview_questions(task)
+    except Exception as exc:
+        logger.warning("[Interview] Question generation failed (%s) — skipping interview", exc)
+        return {"interview_answers": None}
+
+    await post_as_researcher(
+        client, channel_id, thread_ts,
+        "\U0001f9e0 *Before I start researching, I have a few scoping questions:*\n\n"
+        f"{questions}\n\n"
+        "_Please reply in this thread with your answers \u2014 I'll wait!_",
+    )
+    await update_thread_phase(thread_ts, "waiting_interview")
+
+    # ── Human gate ────────────────────────────────────────────────────────────
+    answers = interrupt({"phase": "interview"})
+    logger.info("[Interview] Got answers: %s…", str(answers)[:80])
+
+    return {"interview_answers": answers}
+
+
 async def archie_node(state: AmigosState) -> dict:
     """
     1. Post "starting" ack to Slack
@@ -93,6 +132,13 @@ async def archie_node(state: AmigosState) -> dict:
     channel_id = state["channel_id"]
     thread_ts = state["thread_ts"]
     task = state["task"]
+    interview_answers = state.get("interview_answers") or ""
+    if interview_answers:
+        task = (
+            f"{task}\n\n"
+            f"## Scoping Answers from Engineer\n"
+            f"{interview_answers}"
+        )
 
     logger.info("[Archie] Starting for thread %s", thread_ts)
 
@@ -345,12 +391,14 @@ def build_graph(checkpointer) -> object:
     """
     sg = StateGraph(AmigosState)
 
+    sg.add_node("interview", interview_node)
     sg.add_node("archie", archie_node)
     sg.add_node("builder", builder_node)
     sg.add_node("eval", eval_node)
     sg.add_node("summary", summary_node)
 
-    sg.set_entry_point("archie")
+    sg.set_entry_point("interview")
+    sg.add_edge("interview", "archie")
     sg.add_edge("archie", "builder")
     sg.add_edge("builder", "eval")
     sg.add_edge("eval", "summary")
@@ -374,6 +422,7 @@ async def start_workflow(task: str, channel_id: str, thread_ts: str) -> None:
         "archie_msg_ts": None,
         "builder_msg_ts": None,
         "eval_msg_ts": None,
+        "interview_answers": None,
         "jira_ticket_key": None,
     }
     try:
