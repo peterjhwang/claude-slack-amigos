@@ -1,0 +1,26 @@
+# Core
+anthropic>=0.49.0
+python-dotenv>=1.0.0
+pydantic>=2.9.0
+
+# Slack
+slack-bolt>=1.21.0
+slack-sdk>=3.31.0
+
+# LangGraph (agent orchestration with human-in-the-loop)
+langgraph>=0.2.60
+langgraph-checkpoint-sqlite>=2.0.0
+
+# Web framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+
+# Async SQLite (state management)
+aiosqlite>=0.20.0
+
+# HTTP client
+httpx>=0.27.0
+
+# Optional: web search for Archie's research
+# Get a free key at https://tavily.com
+tavily-python>=0.5.0
