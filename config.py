@@ -50,26 +50,30 @@ CHECKPOINT_DB: str = os.getenv("CHECKPOINT_DB", "./data/checkpoints.db")
 
 # ── Agent personas ─────────────────────────────────────────────────────────────
 # Each dict bundles everything that defines an agent: display name, Slack icon,
-# and the Claude model it runs on. Override names via .env; swap models here.
+# and the Claude model it runs on. Override names and models via .env.
 _RESEARCHER_NAME: str = os.getenv("RESEARCHER_NAME", "Archie")
 _CODER_NAME: str = os.getenv("CODER_NAME", "Builder")
 _EVALUATOR_NAME: str = os.getenv("EVALUATOR_NAME", "Eval")
+
+_RESEARCHER_MODEL: str = os.getenv("RESEARCHER_MODEL", "claude-opus-4-6")
+_CODER_MODEL: str = os.getenv("CODER_MODEL", "claude-sonnet-4-6")
+_EVALUATOR_MODEL: str = os.getenv("EVALUATOR_MODEL", "claude-sonnet-4-6")
 
 RESEARCHER_PERSONA: dict = {
     "name": _RESEARCHER_NAME,
     "username": f"🧠 {_RESEARCHER_NAME} (AI Architect & Researcher)",
     "icon_emoji": ":brain:",
-    "model": "claude-opus-4-6",    # Opus for deep research & architecture design
+    "model": _RESEARCHER_MODEL,
 }
 CODER_PERSONA: dict = {
     "name": _CODER_NAME,
     "username": f"🔨 {_CODER_NAME} (AI Coder)",
     "icon_emoji": ":hammer:",
-    "model": "claude-sonnet-4-6",  # Sonnet via Claude Code CLI; kept for reference
+    "model": _CODER_MODEL,
 }
 EVALUATOR_PERSONA: dict = {
     "name": _EVALUATOR_NAME,
     "username": f"📊 {_EVALUATOR_NAME} (AI Evaluator & Red Teamer)",
     "icon_emoji": ":bar_chart:",
-    "model": "claude-sonnet-4-6",  # Sonnet — analytical, cost-efficient for judge tasks
+    "model": _EVALUATOR_MODEL,
 }
