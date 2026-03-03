@@ -161,7 +161,7 @@ CODER_NAME=Builder
 EVALUATOR_NAME=Eval
 
 # Optional — run Researcher via Claude Code CLI (uses Claude Max quota)
-ARCHIE_USE_CLAUDE_CODE=false
+RESEARCHER_USE_CLAUDE_CODE=false
 ```
 
 ---
@@ -301,7 +301,7 @@ graph TD
 | Web framework | FastAPI + Slack Bolt | Async-native; Bolt handles Slack signature verification |
 | State persistence | SQLite (2 DBs) | Zero-ops; works on free hosting tiers; checkpoints survive restarts |
 | Researcher's model | `claude-opus-4-6` | Best reasoning for architecture decisions; justified cost for one-time design phase |
-| Coder's engine | Claude API (default) or Claude Code CLI | API mode for standard use; set `ARCHIE_USE_CLAUDE_CODE=true` for Max quota |
+| Coder's engine | Claude API (default) or Claude Code CLI | API mode for standard use; set `RESEARCHER_USE_CLAUDE_CODE=true` for Max quota |
 | Evaluator's model | `claude-sonnet-4-6` | Fast + analytical; cost-efficient for judge tasks |
 | Approval UX | Block Kit buttons + 👍 + keywords | Three options so the engineer can approve however feels natural |
 | Interview gate | LangGraph `interrupt()` before research | Captures scoping context before any token spend on architecture |
@@ -351,7 +351,7 @@ EVALUATOR_PERSONA: dict = {
 ### Use Claude Code CLI for Researcher
 Set in `.env`:
 ```env
-ARCHIE_USE_CLAUDE_CODE=true
+RESEARCHER_USE_CLAUDE_CODE=true
 ```
 This routes Researcher through the `claude --print` CLI subprocess, consuming Claude Max quota instead of API credits.
 

@@ -2,7 +2,7 @@
 Researcher — AI Architect & Researcher
 =======================================
 Default mode:  LangGraph `create_react_agent` (prebuilt ReAct loop)
-Optional mode: Claude Code CLI subprocess (set ARCHIE_USE_CLAUDE_CODE=true)
+Optional mode: Claude Code CLI subprocess (set RESEARCHER_USE_CLAUDE_CODE=true)
 
 ReAct loop (default)
 ---------------------
@@ -14,7 +14,7 @@ create_react_agent wires up:
   - Tools: web_search [always], read_jira_ticket + create_jira_ticket [if configured]
   - System prompt enforcing the output format
 
-Claude Code CLI mode (ARCHIE_USE_CLAUDE_CODE=true)
+Claude Code CLI mode (RESEARCHER_USE_CLAUDE_CODE=true)
 ---------------------------------------------------
 Archie delegates to `claude --print` in a temp workspace.
 Uses the Claude Max subscription quota instead of direct API tokens.
@@ -45,7 +45,7 @@ from langgraph.prebuilt import create_react_agent
 
 from config import (
     ANTHROPIC_API_KEY,
-    ARCHIE_USE_CLAUDE_CODE,
+    RESEARCHER_USE_CLAUDE_CODE,
     RESEARCHER_PERSONA,
     JIRA_API_TOKEN,
     JIRA_EMAIL,
@@ -282,7 +282,7 @@ async def generate_interview_questions(task: str) -> str:
     )
     return _extract_text(result.content)
 
-# ── Claude Code CLI path (ARCHIE_USE_CLAUDE_CODE=true) ────────────────────────
+# ── Claude Code CLI path (RESEARCHER_USE_CLAUDE_CODE=true) ────────────────────────
 
 async def _run_archie_with_claude_code(task: str) -> str:
     """
@@ -405,7 +405,7 @@ async def run_researcher(task: str) -> tuple[str, str | None]:
     """
     Run Archie for the given task.
 
-    Selects mode based on ARCHIE_USE_CLAUDE_CODE:
+    Selects mode based on RESEARCHER_USE_CLAUDE_CODE:
     - False (default): create_react_agent ReAct loop with tool calls
     - True: Claude Code CLI subprocess in a temp workspace
 
@@ -414,9 +414,9 @@ async def run_researcher(task: str) -> tuple[str, str | None]:
         jira_ticket_key is the Jira Story key Archie created for Builder, or None.
     """
     logger.info("[Researcher] Starting for: %s (mode=%s)", task[:120],
-                "claude-code" if ARCHIE_USE_CLAUDE_CODE else "react")
+                "claude-code" if RESEARCHER_USE_CLAUDE_CODE else "react")
 
-    if ARCHIE_USE_CLAUDE_CODE:
+    if RESEARCHER_USE_CLAUDE_CODE:
         output = await _run_archie_with_claude_code(task)
     else:
         output = await _run_archie_react(task)
