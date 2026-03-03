@@ -1,47 +1,69 @@
 """
 Archie — AI Architect & Researcher
-Superpower: deep research + system design.
+Framework: LangGraph `create_react_agent` (prebuilt ReAct loop)
+Model: claude-opus-4-6
 
-Uses claude-opus-4-6 with an agentic tool-use loop so it can web-search
-before committing to an architecture. Falls back gracefully if Tavily
-is not configured.
+Archie runs a full ReAct (Reason + Act) loop internally:
+  Think → search the web → think → search again → … → draft architecture
+
+`create_react_agent` wires up:
+  - A LangChain ChatAnthropic model (tool-calling capable)
+  - A list of LangChain tools (web_search)
+  - A system prompt that enforces the output format
+  - The standard message-passing state (MessagesState)
+
+The agent loops autonomously until Claude decides it has enough
+information to produce the final architecture output, then stops.
 """
 from __future__ import annotations
 
 import logging
+from typing import Any
 
-import anthropic
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
+from langgraph.prebuilt import create_react_agent
 
 from config import ANTHROPIC_API_KEY, ARCHIE_MODEL
-from tools.search import web_search
+from tools.search import web_search as _do_web_search
 
 logger = logging.getLogger(__name__)
 
-_client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+# ── LangChain tool (wraps the existing Tavily helper) ─────────────────────────
+@tool
+async def web_search(query: str) -> str:
+    """
+    Search the web for current information about AI models, tools, frameworks,
+    APIs, benchmarks, and pricing. Use this to verify up-to-date choices before
+    committing to an architecture recommendation.
+    """
+    logger.info("[Archie/web_search] query=%s", query[:120])
+    return await _do_web_search(query)
+
 
 # ── System prompt ─────────────────────────────────────────────────────────────
 ARCHIE_SYSTEM = """\
 You are Archie, the AI Architect & Researcher of the 3 Amigos AI engineering team.
 You work for an expert AI engineer who uses Claude Max for production systems.
 
-## Your Responsibilities
-- Research and select optimal models, tools, and frameworks
-  (Claude API, embeddings, vector DBs, LangGraph, CrewAI, MCP servers, Tavily, etc.)
-- Design complete system architectures with Mermaid diagrams
-- Create prompt strategies and agent graph designs
-- Perform cost/latency analysis
-- Write detailed technical specs with clear acceptance criteria and AI metrics
-- Ask for engineer sign-off before handing off to Builder
+## Your ReAct Loop
+1. THINK: reason about the task and what information you need
+2. ACT: call web_search to verify up-to-date facts (models, pricing, APIs, benchmarks)
+3. OBSERVE: read the results and decide if you need more info
+4. Repeat until you have enough to produce a thorough architecture
+5. RESPOND: produce the full architecture output in the required format
 
-## REQUIRED Output Format (always use exactly this structure)
+## REQUIRED Output Format (final message must follow this exactly)
 
 ### 🔍 Research Summary
-Key findings and technology decisions with rationale. Compare alternatives briefly.
+Key findings and technology decisions with rationale. Compare 2-3 alternatives briefly.
 
 ### 🏗️ Architecture
 Include at least one Mermaid diagram:
 ```mermaid
 graph TD
+    A[User] --> B[System]
     ...
 ```
 
@@ -61,106 +83,75 @@ Any decisions needing engineer input before Builder starts. If none, say "None �
 
 ---
 ## Formatting Rules
-- Use Slack mrkdwn: *bold*, _italic_, `code`, ```code blocks```
-- Mermaid diagrams go inside triple-backtick mermaid blocks
+- Slack mrkdwn: *bold*, _italic_, `code`, triple-backtick code blocks
+- Mermaid diagrams inside triple-backtick mermaid blocks
 - Be specific and technical — the engineer is an expert
 - Always recommend the latest Anthropic models:
-  • claude-opus-4-6 for complex reasoning tasks
-  • claude-sonnet-4-6 for fast, high-volume tasks
-  • claude-haiku-4-5-20251001 for lightweight / cheap tasks
-- Always include concrete, measurable acceptance criteria
+  claude-opus-4-6 (complex reasoning), claude-sonnet-4-6 (fast tasks), claude-haiku-4-5-20251001 (cheap/lightweight)
+- Include concrete, measurable acceptance criteria
 """
 
-# ── Tool definitions for Anthropic API tool_use ───────────────────────────────
-_TOOLS: list[dict] = [
-    {
-        "name": "web_search",
-        "description": (
-            "Search the web for current information about AI models, frameworks, APIs, "
-            "pricing, benchmarks, and engineering best practices. "
-            "Use this to verify up-to-date info before recommending a stack."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": (
-                        "Specific search query, e.g. "
-                        "'LangGraph vs CrewAI 2025 async performance' or "
-                        "'claude-opus-4-6 pricing per million tokens'"
-                    ),
-                }
-            },
-            "required": ["query"],
-        },
-    }
-]
+# ── Build the ReAct agent (module-level singleton) ────────────────────────────
+_llm = ChatAnthropic(
+    model=ARCHIE_MODEL,
+    api_key=ANTHROPIC_API_KEY,
+    max_tokens=8_000,
+)
+
+# create_react_agent builds the full ReAct graph:
+#   START → agent_node ← [tool_node loops back] → END
+# The agent calls tools until it decides to stop, then produces the final answer.
+_archie_graph = create_react_agent(
+    model=_llm,
+    tools=[web_search],
+    prompt=ARCHIE_SYSTEM,   # system message injected at the start of every run
+)
 
 
-# ── Main agent function ───────────────────────────────────────────────────────
+# ── Helper: extract text from the last LangChain message ─────────────────────
+def _extract_text(content: Any) -> str:
+    """Handle both str content and list-of-blocks content from LangChain."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return " ".join(
+            block.get("text", "") if isinstance(block, dict) else str(block)
+            for block in content
+        ).strip()
+    return str(content)
+
+
+# ── Public entry point ────────────────────────────────────────────────────────
 async def run_archie(task: str) -> str:
     """
-    Run Archie's research-and-design loop for the given task.
-    Returns a fully formatted Slack mrkdwn string ready to post.
+    Run Archie's ReAct loop for the given task.
+    The agent researches autonomously (web searches) then produces
+    a complete architecture + spec formatted for Slack.
+
+    Returns a Slack mrkdwn string ready to post.
     """
-    logger.info("[Archie] Starting research for: %s", task[:120])
+    logger.info("[Archie] Starting ReAct loop for: %s", task[:120])
 
-    messages: list[dict] = [
+    result = await _archie_graph.ainvoke(
         {
-            "role": "user",
-            "content": (
-                f"Research and design a complete architecture for this task:\n\n"
-                f"**Task:** {task}\n\n"
-                "Search the web for relevant tools, models, and frameworks. "
-                "Then produce your full architecture output following the required format."
-            ),
-        }
-    ]
-
-    # Agentic tool-use loop (max 6 iterations to control cost)
-    for iteration in range(6):
-        response = await _client.messages.create(
-            model=ARCHIE_MODEL,
-            max_tokens=8_000,
-            system=ARCHIE_SYSTEM,
-            tools=_TOOLS,
-            messages=messages,
-        )
-
-        text_parts: list[str] = []
-        tool_uses: list = []
-
-        for block in response.content:
-            if block.type == "text":
-                text_parts.append(block.text)
-            elif block.type == "tool_use":
-                tool_uses.append(block)
-
-        if response.stop_reason == "end_turn":
-            result = "".join(text_parts).strip()
-            logger.info("[Archie] Done after %d iteration(s).", iteration + 1)
-            return result or "Archie completed research but produced no text output."
-
-        if response.stop_reason == "tool_use" and tool_uses:
-            # Execute each tool call
-            messages.append({"role": "assistant", "content": response.content})
-            tool_results: list[dict] = []
-            for tu in tool_uses:
-                if tu.name == "web_search":
-                    logger.info("[Archie] Searching: %s", tu.input.get("query", ""))
-                    result = await web_search(tu.input["query"])
-                else:
-                    result = f"Unknown tool: {tu.name}"
-                tool_results.append(
-                    {"type": "tool_result", "tool_use_id": tu.id, "content": result}
+            "messages": [
+                HumanMessage(
+                    content=(
+                        f"Research and design a complete architecture for this task:\n\n"
+                        f"**Task:** {task}\n\n"
+                        "Search for relevant tools, models, and frameworks first. "
+                        "Then produce your full architecture output following the required format."
+                    )
                 )
-            messages.append({"role": "user", "content": tool_results})
-        else:
-            # stop_reason is something unexpected — return what we have
-            return "".join(text_parts).strip() or "Archie stopped unexpectedly."
-
-    return (
-        "Archie hit the research iteration limit. "
-        "Try a more specific task or increase max iterations."
+            ]
+        }
     )
+
+    # The last message in the thread is Archie's final response
+    messages = result.get("messages", [])
+    if not messages:
+        return "Archie produced no output."
+
+    final_content = _extract_text(messages[-1].content)
+    logger.info("[Archie] Done. Output: %d chars, %d messages exchanged.", len(final_content), len(messages))
+    return final_content or "Archie completed research but produced no text output."

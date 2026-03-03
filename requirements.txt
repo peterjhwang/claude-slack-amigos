@@ -7,9 +7,13 @@ pydantic>=2.9.0
 slack-bolt>=1.21.0
 slack-sdk>=3.31.0
 
-# LangGraph (agent orchestration with human-in-the-loop)
+# LangGraph (outer orchestration + inner agent frameworks)
 langgraph>=0.2.60
 langgraph-checkpoint-sqlite>=2.0.0
+
+# LangChain Anthropic — used by Archie's create_react_agent
+langchain-anthropic>=0.3.0
+langchain-core>=0.3.0
 
 # Web framework
 fastapi>=0.115.0
