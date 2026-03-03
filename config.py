@@ -17,6 +17,14 @@ ANTHROPIC_API_KEY: str = os.environ["ANTHROPIC_API_KEY"]
 # ── Optional integrations ─────────────────────────────────────────────────────
 TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")
 
+# ── GitHub (Builder: clone → Claude Code → push → PR → Slack notification) ───
+# Personal access token with `repo` + `pull_request` scopes
+GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
+# e.g. "myorg/my-project". If empty, Builder skips push/PR and uploads a zip.
+GITHUB_REPO: str = os.getenv("GITHUB_REPO", "")
+# Base branch that PRs are opened against
+GITHUB_BASE_BRANCH: str = os.getenv("GITHUB_BASE_BRANCH", "main")
+
 # ── Paths ─────────────────────────────────────────────────────────────────────
 PORT: int = int(os.getenv("PORT", "3000"))
 DB_PATH: str = os.getenv("DB_PATH", "./data/amigos.db")

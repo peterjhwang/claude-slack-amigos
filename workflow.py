@@ -135,8 +135,8 @@ async def archie_node(state: AmigosState) -> dict:
 async def builder_node(state: AmigosState) -> dict:
     """
     1. Post "starting" ack
-    2. Run Builder (implements Archie's spec)
-    3. Post implementation output
+    2. Run Builder's agentic loop (bash + file I/O — real Claude Code-style execution)
+    3. Upload the zipped project to Slack
     4. Post approval buttons
     5. interrupt() — pauses until engineer approves
     """
@@ -150,13 +150,23 @@ async def builder_node(state: AmigosState) -> dict:
 
     await post_as_builder(
         client, channel_id, thread_ts,
-        "🔨 *Building based on Archie's architecture...* "
-        "Writing production code now — progress updates coming!",
+        "🔨 *Building based on Archie's architecture...*\n"
+        "I have bash + file access — actually writing and running code now. "
+        "Progress updates every 5 operations.",
     )
     await update_thread_phase(thread_ts, "building")
 
+    # Progress updates are posted back into the same thread
+    async def _progress(msg: str) -> None:
+        await post_as_builder(client, channel_id, thread_ts, msg)
+
     try:
-        builder_output = await run_builder(task, archie_output)
+        builder_output, pr_url = await run_builder(
+            task,
+            archie_output,
+            build_id=thread_ts,          # isolated sandbox per thread
+            progress_callback=_progress,
+        )
     except Exception as exc:
         logger.exception("[Builder] Build failed")
         await post_as_builder(
@@ -165,7 +175,22 @@ async def builder_node(state: AmigosState) -> dict:
         )
         raise
 
+    # Post the build summary
     await post_as_builder(client, channel_id, thread_ts, builder_output)
+
+    # Post the PR link as a prominent standalone message (or a note if no PR)
+    if pr_url:
+        await post_as_builder(
+            client, channel_id, thread_ts,
+            f"🔗 *Pull Request opened:*\n{pr_url}\n\n"
+            "_Review the code on GitHub, then come back here to approve Eval._",
+        )
+    else:
+        await post_as_builder(
+            client, channel_id, thread_ts,
+            "ℹ️ _No GITHUB_REPO configured — code was built locally. "
+            "Set `GITHUB_TOKEN` + `GITHUB_REPO` in `.env` to get automatic PRs._",
+        )
 
     approval_blocks = make_approval_blocks(
         "*Builder has completed the implementation!* "
