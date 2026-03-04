@@ -177,9 +177,9 @@ async def handle_mention(event: dict, client: AsyncWebClient):
             client, channel_id, thread_ts,
             "👋 *Hey! I'm the 3 Amigos bot.*\n\n"
             "Give me a task and the whole team will handle it:\n"
-            "  1️⃣ 🧠 *Archie* — researches & designs the architecture\n"
-            "  2️⃣ 🔨 *Builder* — implements it (after your 👍)\n"
-            "  3️⃣ 📊 *Eval* — tests & red-teams it (after your 👍)\n\n"
+            f"  1️⃣ 🧠 *{config.RESEARCHER_PERSONA['name']}* — researches & designs the architecture\n"
+            f"  2️⃣ 🔨 *{config.CODER_PERSONA['name']}* — implements it (after your 👍)\n"
+            f"  3️⃣ 📊 *{config.EVALUATOR_PERSONA['name']}* — tests & red-teams it (after your 👍)\n\n"
             "*Example:* `@amigos Build a RAG pipeline with Claude + Pinecone for PDF Q&A`",
         )
         return
@@ -204,9 +204,9 @@ async def handle_mention(event: dict, client: AsyncWebClient):
         client, channel_id, thread_ts,
         f"🎯 *3 Amigos on it!* Task received:\n\n_{task}_\n\n"
         "Here's the plan:\n"
-        "  1️⃣ 🧠 *Archie* will research & design the architecture\n"
-        "  2️⃣ 🔨 *Builder* will implement it (after your 👍)\n"
-        "  3️⃣ 📊 *Eval* will test & red-team it (after your 👍)\n\n"
+        f"  1️⃣ 🧠 *{config.RESEARCHER_PERSONA['name']}* will research & design the architecture\n"
+        f"  2️⃣ 🔨 *{config.CODER_PERSONA['name']}* will implement it (after your 👍)\n"
+        f"  3️⃣ 📊 *{config.EVALUATOR_PERSONA['name']}* will test & red-team it (after your 👍)\n\n"
         "Kicking off now...",
     )
 

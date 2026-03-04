@@ -312,6 +312,7 @@ async def _run_archie_with_claude_code(task: str) -> str:
         cmd = [
             "claude",
             "--print",
+            "--verbose",
             "--dangerously-skip-permissions",
             "--output-format", "stream-json",
             (

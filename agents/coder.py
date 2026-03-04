@@ -167,6 +167,7 @@ async def _run_claude_code(
     cmd = [
         "claude",
         "--print",
+        "--verbose",
         "--dangerously-skip-permissions",   # no interactive prompts in automation
         "--output-format", "stream-json",
         prompt,
