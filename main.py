@@ -102,7 +102,15 @@ async def health():
 
 @app.post("/slack/events")
 async def slack_events(req: Request):
-    """Handles Slack Event Subscriptions (app_mention, reaction_added, message)."""
+    """
+    Handles Slack Event Subscriptions (app_mention, reaction_added, message).
+
+    This endpoint automatically handles:
+    - url_verification (Slack's challenge-response for enabling event subscriptions)
+    - event_callback (actual events like app_mention, message, reaction_added)
+    """
+    # IMPORTANT: Don't read req.body() here! The handler needs to read it.
+    # Slack Bolt's AsyncSlackRequestHandler handles url_verification automatically.
     return await handler.handle(req)
 
 
